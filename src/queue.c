@@ -1,6 +1,7 @@
 #include "queue.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 void kuyruk_olustur(Kuyruk* k) {
     k->bas = NULL;
@@ -49,9 +50,10 @@ void kuyruk_yaslandir_ve_temizle(Kuyruk* k, int suanki_zaman) {
         // Bekleme süresini artır
         suanki->bekleme_suresi++;
 
-        // 20 saniye kuralı
-        if (suanki->bekleme_suresi >= 20) {
-            printf("%.4f sn task%d zamanasimi \t(id:%04d \t oncelik:%d \tkalan sure:%d sn)\n", 
+        // 20 saniye kuralı: 20 tam saniye bekleme süresi dolduğunda (yani 21. tick'te)
+        if (suanki->bekleme_suresi >= 21) { 
+            // Zamanaşımı mesajı saniye zamanında raporlanır (Örnek Çıktı uyumu için 21.0000)
+            printf("%.4f sn proses zamanasimi \t(id:%04d \t oncelik:%d \tkalan sure:%d sn)\n", 
                    (float)suanki_zaman, suanki->id + 1, suanki->id, suanki->oncelik, suanki->kalan_sure);
             
             // Bağlı listeden düğüm silme işlemi

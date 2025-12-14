@@ -1,6 +1,8 @@
 #ifndef TASK_H
 #define TASK_H
 
+#include <stdbool.h>
+
 // Görev Durumları
 typedef enum {
     DURUM_HAZIR,
@@ -19,6 +21,7 @@ typedef struct Task {
     int kalan_sure;         // Geriye kalan süre
     int bekleme_suresi;     // YENI: Kuyrukta bekleme süresi (20 sn kuralı)
     TaskDurumu durum;       // Anlık durum
+    bool yenimibasladi;
     struct Task* sonraki;   // Sonraki görev (Linked List için)
 } Task;
 
