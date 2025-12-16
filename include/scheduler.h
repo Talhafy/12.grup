@@ -1,7 +1,7 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
-#include "task.h"
+#include "sim_task.h"
 #include <stdbool.h>
 
 void scheduler_baslat();
