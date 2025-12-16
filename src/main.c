@@ -2,45 +2,39 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Windows ve Linux uyumluluğu (Sleep fonksiyonu için)
-#ifdef _WIN32
-    #include <windows.h>
-    #define sleep(x) Sleep(x * 1000)
-#else
-    #include <unistd.h>
-#endif
+#include "FreeRTOS.h"
+#include "task.h"
 
 #include "scheduler.h"
-#include "task.h"
+#include "sim_task.h"
 
 #define BUFFER_SIZE 1024
 
-int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        printf("Kullanim: %s <giris_dosyasi.txt>\n", argv[0]);
-        return 1;
-    }
+// Simülasyonu yönetecek Ana Task
+static void SimulationTask(void *pvParameters)
+{
+    char *dosya_adi = (char *)pvParameters;
 
-    FILE* dosya = fopen(argv[1], "r");
+    FILE *dosya = fopen(dosya_adi, "r");
     if (!dosya) {
         perror("Dosya acilamadi");
-        return 1;
+        vTaskDelete(NULL);
     }
 
     scheduler_baslat();
 
-    // Geçici olarak görevleri tutmak için basit yapı
-    struct {
+    // Stack taşmasını önlemek için static yaptık
+    static struct {
         int zaman;
         int oncelik;
         int sure;
     } gelen_tasklar[200];
+
+    static char satir[BUFFER_SIZE];
     int task_sayisi = 0;
 
-    char satir[BUFFER_SIZE];
     while (fgets(satir, sizeof(satir), dosya)) {
         int z, o, s;
-        // Dosya formatı: 0, 1, 2
         if (sscanf(satir, "%d , %d , %d", &z, &o, &s) == 3) {
             gelen_tasklar[task_sayisi].zaman = z;
             gelen_tasklar[task_sayisi].oncelik = o;
@@ -53,37 +47,60 @@ int main(int argc, char* argv[]) {
     int global_zaman = 0;
     int next_task_id = 0;
 
-    // --- SİMÜLASYON DÖNGÜSÜ ---
     while (1) {
-        // 1. Bu saniyede gelen yeni görev var mı?
+        // 1. Yeni Görevler
         for (int i = 0; i < task_sayisi; i++) {
             if (gelen_tasklar[i].zaman == global_zaman) {
-                // Dinamik bellek tahsisi (Linked List için gerekli)
-                Task* t = (Task*)malloc(sizeof(Task));
-                t->id = next_task_id++;
-                t->varis_zamani = gelen_tasklar[i].zaman;
-                t->oncelik = gelen_tasklar[i].oncelik;
-                t->patlama_suresi = gelen_tasklar[i].sure;
-                t->kalan_sure = gelen_tasklar[i].sure;
-                t->sonraki = NULL;
-                
-                scheduler_gorev_kabul(t);
-                // "Yeni görev geldi" çıktısı istenmemiş, direkt kuyruğa alıyoruz.
+                Task *t = (Task *)malloc(sizeof(Task));
+                if (t) {
+                    t->id = next_task_id++;
+                    t->varis_zamani = gelen_tasklar[i].zaman;
+                    t->oncelik = gelen_tasklar[i].oncelik;
+                    t->patlama_suresi = gelen_tasklar[i].sure;
+                    t->kalan_sure = gelen_tasklar[i].sure;
+                    t->sonraki = NULL;
+
+                    scheduler_gorev_kabul(t);
+                }
             }
         }
 
-        // 2. Scheduler Tick (Çizelgeleyiciyi çalıştır)
+        // 2. Scheduler Çalıştır
         scheduler_calistir(global_zaman);
 
         // 3. Çıkış Kontrolü
-        // Hem scheduler boş olmalı hem de dosyadan gelecek görev kalmamalı
-        if (scheduler_bitti_mi() && global_zaman > gelen_tasklar[task_sayisi-1].zaman + 2) {
+        if (scheduler_bitti_mi() && global_zaman > gelen_tasklar[task_sayisi - 1].zaman + 2) {
             break;
         }
 
         global_zaman++;
-        sleep(1); // 1 saniye bekle
+        // 1 saniye bekle
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
+    printf("Simulasyon bitti.\n");
+    vTaskDelete(NULL);
+}
+
+int main(int argc, char *argv[])
+{
+    // Tamponlamayı kapat (anlık çıktı için)
+    setvbuf(stdout, NULL, _IONBF, 0);
+
+    if (argc != 2) {
+        printf("Kullanim: %s <giris_dosyasi.txt>\n", argv[0]);
+        return 1;
+    }
+
+    xTaskCreate(
+        SimulationTask,
+        "SimTask",
+        8192,  // Yüksek Stack Size
+        argv[1],
+        tskIDLE_PRIORITY + 2,
+        NULL
+    );
+
+    vTaskStartScheduler();
     return 0;
 }
